@@ -21,22 +21,26 @@ const test = [{
 }];
 
 const askQuestion = (question) => new Task((rej, res) =>
-    rl.question(question, (answer) => res({ question, answer })));
+    rl.question(question.ask, (answer) => res({question, answer})));
 
-const logAnswer = ({ question, answer }) => {
-    console.log(`Your answer for question: ${question}, is: ${answer}`);
+const logAnswer = ({question, answer}) => {
+    console.log(`Your answer for question: ${question.ask}, is: ${answer}`);
 };
 
-const logAnswerAskNextQuestion = (answered, question) => {
-    console.log('----@'); logAnswer(answered);
-    return askQuestion(question);
+const logAnswerAskNextQuestion = ({question, answer}, nextQuestion) => {
+    logAnswer({question, answer});
+    const followUpQuestion = question[answer];
+    return followUpQuestion ?
+        askQuestion(followUpQuestion).chain(answered => logAnswerAskNextQuestion(answered, nextQuestion))
+        : askQuestion(nextQuestion);
 };
 
-const askAllQuestions = _.reduce((t, q) => {
-    return t ? t.chain(answered => logAnswerAskNextQuestion(answered, q)) : askQuestion(q);
+const askAllQuestions = _.reduce((task, nextQuestion) => {
+    return task ? task.chain(answered =>
+        logAnswerAskNextQuestion(answered, nextQuestion)) : askQuestion(nextQuestion);
 }, undefined);
 
-const getAllQuestions = _.map(_.prop('ask'));
+const getAllQuestions = _.map(_.identity);
 
 const mak = (listOfQuestions) => askAllQuestions(getAllQuestions(listOfQuestions));
 
