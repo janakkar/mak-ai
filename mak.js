@@ -7,6 +7,37 @@ const rl = readline.createInterface({
     output: process.stdout
 });
 
+const askQuestion = (question, context = { answers: [] }) => new Task((rej, res) =>
+    rl.question(question.ask, (answer) => res({ question, answer, context })));
+
+const logAnswer = ({question, answer}) => {
+    console.log(`Your answer for question: ${question.ask}, is: ${answer}`);
+};
+
+const collectAnswers = (answered) => {
+    const { question, answer } = answered;
+    logAnswer(answered);
+    answered.context.answers.push({ question, answer });
+    return answered;
+}
+
+const askFollowUpQuestions = (answered, nextQuestion) => {
+    const { question, answer } = answered;
+    const updatedContext = collectAnswers(answered).context;
+    const followUpQuestion = question[answer];
+
+    return followUpQuestion ?
+        askQuestion(followUpQuestion, updatedContext).chain(answered =>
+            askFollowUpQuestions(answered, nextQuestion))
+        : askQuestion(nextQuestion, updatedContext);
+};
+
+const askAllQuestions = _.reduce((task, nextQuestion) => {
+    return task ? task.chain(answered =>
+        askFollowUpQuestions(answered, nextQuestion)) : askQuestion(nextQuestion);
+}, undefined);
+
+
 const test = [{
     "ask": "Anything I need to know about?",
     "yes": {
@@ -22,42 +53,12 @@ const test = [{
     "ask": "You sure?",
     "id": 1003
 }];
-
-const askQuestion = (question, answers) => new Task((rej, res) =>
-    rl.question(question.ask, (answer) => res({question, answer, answers})));
-
-const logAnswer = ({question, answer}) => {
-    console.log(`Your answer for question: ${question.ask}, is: ${answer}`);
-};
-
-const collectAnswers = ({question, answer, answers}) => {
-    logAnswer({question, answer});
-    return {question, answer,
-        'answers': _.append({question, answer}, answers)};
-}
-
-const collectAnswerAskNextQuestion = ({question, answer, answers}, nextQuestion) => {
-    const collectedAnswers = collectAnswers({question, answer, answers}).answers;
-    const followUpQuestion = question[answer];
-    return followUpQuestion ?
-        askQuestion(followUpQuestion, collectedAnswers).chain(answered =>
-            collectAnswerAskNextQuestion(answered, nextQuestion))
-        : askQuestion(nextQuestion, collectedAnswers);
-};
-
-const askAllQuestions = _.reduce((task, nextQuestion) => {
-    return task ? task.chain(answered =>
-        collectAnswerAskNextQuestion(answered, nextQuestion)) : askQuestion(nextQuestion, []);
-}, undefined);
-
-
 const mak = askAllQuestions;
-
 mak(test).fork(console.error, (answered) => {
     const collected = collectAnswers(answered);
-    
+
     console.log('-----------------------------------');
     console.log('YOUR ANSWERS');
     console.log('-----------------------------------');
-    collected.answers.map(logAnswer);
+    collected.context.answers.map(logAnswer);
 });
